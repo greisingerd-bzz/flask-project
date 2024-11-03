@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Simple ToDo App</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        h2 { color: #333; }
+        input, button { margin: 5px 0; padding: 5px; }
+        .todo-item { margin: 10px 0; }
+    </style>
+</head>
+<body>
+
+    <h2>Logout</h2>
+    <button id="logout-button">Logout</button>
+
+    <h2>ToDo erstellen</h2>
+    <form id="add-todo-form">
+        <label for="todo-title">Titel:</label><br>
+        <input type="text" id="todo-title" required><br>
+        <button type="submit">ToDo hinzufügen</button>
+    </form>
+
+    <h2>Alle ToDos anzeigen</h2>
+    <button id="get-todos-button">ToDos laden</button>
+    <div id="todos-list"></div>
+
+    <script>
+        async function loginUser(username, password) {
+            const response = await fetch('/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    alert("Erfolgreich eingeloggt");
+                    window.location.href = "/index";
+                } else {
+                    alert("Login fehlgeschlagen");
+                }
+            } else {
+                alert("Fehler beim Senden der Anfrage");
+            }
+        }
+
+        async function logoutUser() {
+            const response = await fetch('/logout', {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            if (data.success) {
+                alert("Erfolgreich ausgeloggt");
+                window.location.href = "/login";
+            } else {
+                alert("Logout fehlgeschlagen");
+            }
+        }
+
+        async function addTodo(title) {
+            const response = await fetch('/todos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, is_completed: false })
+            });
+            const data = await response.json();
+            alert(data.message);
+        }
+
+        async function getTodos() {
+            const response = await fetch('/todos', { method: 'GET' });
+            const todos = await response.json();
+            const todosList = document.getElementById('todos-list');
+            todosList.innerHTML = '';
+            todos.forEach(todo => {
+                const todoDiv = document.createElement('div');
+                todoDiv.className = 'todo-item';
+                todoDiv.innerHTML = `<strong>${todo.title}</strong> - Completed: ${todo.is_completed}`;
+                todosList.appendChild(todoDiv);
+            });
+        }
+
+        document.getElementById('logout-button').onclick = async () => {
+            await logoutUser();
+        };
+
+        document.getElementById('add-todo-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const title = document.getElementById('todo-title').value;
+            await addTodo(title);
+        };
+
+        document.getElementById('get-todos-button').onclick = async () => {
+            await getTodos();
+        };
+    </script>
+
+</body>
+</html>
