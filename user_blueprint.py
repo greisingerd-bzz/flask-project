@@ -1,57 +1,101 @@
-"""Blueprint for user authentication."""
-from flask import Blueprint, request, jsonify, redirect, url_for, render_template
-from flask_login import login_user, logout_user, login_required
+from flask import Blueprint, request, jsonify, render_template, g
+from werkzeug.security import check_password_hash, generate_password_hash
+from flask_login import login_user, logout_user, login_required, current_user
 from user_dao import UserDao
 from user import User
 
 user_blueprint = Blueprint('user_blueprint', __name__)
-user_dao = UserDao('todo_example.db')
+
+
+def get_user_dao():
+    if 'user_dao' not in g:
+        g.user_dao = UserDao('todo_example.db')
+    return g.user_dao
+
+
+@user_blueprint.teardown_app_request
+def close_connection(exception):
+    user_dao = g.pop('user_dao', None)
+    if user_dao is not None:
+        user_dao.close()
 
 
 @user_blueprint.route('/register', methods=['GET', 'POST'])
-def register():
-    """Handle registration."""
-    if request.method == 'POST':
-        data = request.get_json()
-        username = data.get('username')
-        password = data.get('password')
-        print("Registrierungsversuch:", username)
+def register_page():
+    if request.method == 'GET':
+        return render_template('register.html')
 
-        user_dao.add_user(User(None, username, None, password))
-        return redirect(url_for('user_blueprint.login'))
+    data = request.get_json()
+    name = data.get('name')
+    email = data.get('email')
+    password = data.get('password')
 
-    return render_template('register.html')
+    user_dao = get_user_dao()
+    if user_dao.get_user_by_email(email):
+        return jsonify({"error": "User already exists"}), 400
+
+    hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
+    new_user = User(None, name, email, hashed_password)
+    user_dao.add_user(new_user)
+    return jsonify({"message": "User successfully registered"}), 201
 
 
 @user_blueprint.route('/login', methods=['GET', 'POST'])
 def login():
-    """Handle login."""
-    if request.method == 'POST':
-        data = request.get_json()
-        username = data.get('username')
-        password = data.get('password')
+    if request.method == 'GET':
+        return render_template('login.html')
 
-        print("Login-Versuch für Benutzer:", username)
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
 
-        user = user_dao.get_user_by_username(username)
+    user_dao = get_user_dao()
+    user = user_dao.get_user_by_email(email)
 
-        if user:
-            print("Benutzer gefunden:", user.username)
+    if not user:
+        print(f"User with email {email} not found.")
+        return jsonify({"error": "Invalid credentials"}), 401
 
-        if user and user.password == password:
-            login_user(user)
-            print("Login erfolgreich.")
-            return jsonify({"success": True}), 200
-        else:
-            print("Login fehlgeschlagen: Falsches Passwort oder Benutzername.")
-            return jsonify({"error": "Unauthorized"}), 401
+    print(f"User found: {user.email}")
+    print(f"Entered password: {password}")
 
-    return render_template('login.html')
+    if not check_password_hash(user.password, password):
+        print(f"Stored hashed password: {user.password}")
+        print("Invalid password.")
+        return jsonify({"error": "Invalid credentials"}), 401
+
+    login_user(user)
+    return jsonify({"message": "Successfully logged in"}), 200
 
 
-@user_blueprint.route('/logout')
+@user_blueprint.route('/register_new', methods=['POST'])
+def register_new_user():
+    data = request.get_json()
+
+    if not data:
+        return jsonify({"error": "Request did not contain JSON data"}), 400
+
+    name = data.get('name')
+    email = data.get('email')
+    password = data.get('password')
+
+    # Validation der Eingabedaten
+    if not all([name, email, password]):
+        return jsonify({"error": "Name, Email und Passwort sind erforderlich"}), 400
+
+    user_dao = UserDao('todo_example.db')
+    existing_user = user_dao.get_user_by_email(email)
+    if existing_user:
+        return jsonify({"error": "Ein Benutzer mit dieser E-Mail existiert bereits"}), 400
+
+    hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
+    new_user = User(None, name, email, hashed_password)
+    user_dao.add_user(new_user)
+    return jsonify({"message": "Registrierung erfolgreich"}), 201
+
+
+@user_blueprint.route('/logout', methods=['GET'])
 @login_required
 def logout():
-    """Handle logout."""
     logout_user()
-    return redirect(url_for('user_blueprint.login'))
+    return jsonify({"message": "Successfully logged out"}), 200

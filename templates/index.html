@@ -27,33 +27,12 @@
     <div id="todos-list"></div>
 
     <script>
-        async function loginUser(username, password) {
-            const response = await fetch('/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
-                    alert("Erfolgreich eingeloggt");
-                    window.location.href = "/index";
-                } else {
-                    alert("Login fehlgeschlagen");
-                }
-            } else {
-                alert("Fehler beim Senden der Anfrage");
-            }
-        }
-
         async function logoutUser() {
             const response = await fetch('/logout', {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' }
             });
-            const data = await response.json();
-            if (data.success) {
+            if (response.ok) {
                 alert("Erfolgreich ausgeloggt");
                 window.location.href = "/login";
             } else {
@@ -61,27 +40,58 @@
             }
         }
 
-        async function addTodo(title) {
+        async function addTodo(description) {
             const response = await fetch('/todos', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, is_completed: false })
+                body: JSON.stringify({ description })
             });
-            const data = await response.json();
-            alert(data.message);
+
+            if (response.ok) {
+                const data = await response.json();
+                alert(data.message);
+                document.getElementById('todo-title').value = ''; // Clear the input
+                getTodos(); // Reload the todos list
+            } else {
+                alert("Fehler beim Hinzufügen des Todos");
+            }
         }
 
         async function getTodos() {
-            const response = await fetch('/todos', { method: 'GET' });
-            const todos = await response.json();
-            const todosList = document.getElementById('todos-list');
-            todosList.innerHTML = '';
-            todos.forEach(todo => {
-                const todoDiv = document.createElement('div');
-                todoDiv.className = 'todo-item';
-                todoDiv.innerHTML = `<strong>${todo.title}</strong> - Completed: ${todo.is_completed}`;
-                todosList.appendChild(todoDiv);
+            const response = await fetch('/todos', {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
             });
+            if (response.ok) {
+                const todos = await response.json();
+                const todosList = document.getElementById('todos-list');
+                todosList.innerHTML = '';
+                todos.forEach(todo => {
+                    const todoDiv = document.createElement('div');
+                    todoDiv.className = 'todo-item';
+                    todoDiv.innerHTML = `
+                        <strong>${todo.description}</strong>
+                        <button onclick="deleteTodo(${todo.id})">Löschen</button>
+                    `;
+                    todosList.appendChild(todoDiv);
+                });
+            } else {
+                alert("Fehler beim Laden der Todos");
+            }
+        }
+
+        async function deleteTodo(todoId) {
+            const response = await fetch(`/todos/${todoId}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (response.ok) {
+                alert("Todo erfolgreich gelöscht");
+                getTodos(); // Reload the todos list
+            } else {
+                alert("Fehler beim Löschen des Todos");
+            }
         }
 
         document.getElementById('logout-button').onclick = async () => {
@@ -90,11 +100,16 @@
 
         document.getElementById('add-todo-form').onsubmit = async (e) => {
             e.preventDefault();
-            const title = document.getElementById('todo-title').value;
-            await addTodo(title);
+            const description = document.getElementById('todo-title').value;
+            await addTodo(description);
         };
 
         document.getElementById('get-todos-button').onclick = async () => {
+            await getTodos();
+        };
+
+        // Beim Seitenladen automatisch die Todos laden
+        window.onload = async () => {
             await getTodos();
         };
     </script>

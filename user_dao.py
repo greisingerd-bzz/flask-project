@@ -1,52 +1,49 @@
-""" This module contains the UserDao class, which is responsible for handling all database operations related to the User model. """
 import sqlite3
 from user import User
 
+
 class UserDao:
     def __init__(self, db_file):
-        self.conn = sqlite3.connect(db_file, check_same_thread=False)
-        self.cursor = self.conn.cursor()
+        self.connection = sqlite3.connect(db_file, check_same_thread=False)
+        self.create_table()
 
-    def create_user_table(self):
-        self.cursor.execute("""DROP TABLE IF EXISTS users""")
-        self.cursor.execute(
-            """CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY,
-                username TEXT,
-                email TEXT,
-                password TEXT
-            )"""
-        )
-        self.conn.commit()
+    def create_table(self):
+        with self.connection:
+            self.connection.execute(
+                "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, password TEXT)"
+            )
 
     def add_user(self, user):
-        self.cursor.execute(
-            "INSERT INTO users (username, email, password) VALUES (?, ?, ?)",
-            (user.username, user.email, user.password),
-        )
-        self.conn.commit()
+        existing_user = self.get_user_by_email(user.email)
+        if existing_user:
+            print(f"Benutzer mit E-Mail {user.email} existiert bereits.")
+            return
+
+        with self.connection:
+            self.connection.execute(
+                "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
+                (user.name, user.email, user.password),
+            )
 
     def get_user_by_id(self, user_id):
-        self.cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-        row = self.cursor.fetchone()
+        cursor = self.connection.cursor()
+        cursor.execute(
+            "SELECT id, name, email, password FROM users WHERE id = ?", (user_id,)
+        )
+        row = cursor.fetchone()
         if row:
-            return User(row[0], row[1], row[2], row[3])
+            return User(id=row[0], name=row[1], email=row[2], password=row[3])
         return None
 
-    def get_user_by_username(self, username):
-        self.cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
-        row = self.cursor.fetchone()
+    def get_user_by_email(self, email):
+        cursor = self.connection.cursor()
+        cursor.execute(
+            "SELECT id, name, email, password FROM users WHERE email = ?", (email,)
+        )
+        row = cursor.fetchone()
         if row:
-            return User(row[0], row[1], row[2], row[3])
+            return User(id=row[0], name=row[1], email=row[2], password=row[3])
         return None
-
-    def delete_user(self, user_id):
-        self.cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
-        if self.cursor.rowcount > 0:
-            self.conn.commit()
-            return True
-        return False
 
     def close(self):
-        """Closes the database connection."""
-        self.conn.close()
+        self.connection.close()
