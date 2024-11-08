@@ -1,7 +1,3 @@
-"""
-Todo module defines a basic TodoItem and functions to manage todo items with functional programming.
-"""
-
 class TodoItem:
     _id_counter = 1
 
