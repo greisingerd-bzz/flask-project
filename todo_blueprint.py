@@ -2,9 +2,9 @@ from flask import Blueprint, jsonify, g, render_template, request
 from flask_login import login_required, current_user
 from todo_dao import TodoDao
 from todo_item import TodoItem
+from functools import reduce
 
 todo_blueprint = Blueprint('todo_blueprint', __name__)
-
 
 def get_todo_dao():
     if 'todo_dao' not in g:
@@ -46,9 +46,39 @@ def add_todo():
 
     return jsonify({"message": "Todo erfolgreich hinzugefügt"}), 201
 
+
 @todo_blueprint.route('/todos/<int:todo_id>', methods=['DELETE'])
 @login_required
 def delete_todo(todo_id):
     todo_dao = get_todo_dao()
     todo_dao.delete_item(todo_id)
     return jsonify({"message": "Todo erfolgreich gelöscht"}), 204
+
+
+@todo_blueprint.route('/todos/completed', methods=['GET'])
+@login_required
+def get_completed_todos():
+    todo_dao = get_todo_dao()
+    todos = todo_dao.get_items_by_user_id(current_user.id)
+    completed_todos = list(filter(lambda todo: todo.completed, todos))
+    return jsonify([todo.__dict__ for todo in completed_todos]), 200
+
+
+@todo_blueprint.route('/todos/uppercase_completed', methods=['GET'])
+@login_required
+def get_uppercase_completed_todos():
+    todo_dao = get_todo_dao()
+    todos = todo_dao.get_items_by_user_id(current_user.id)
+    uppercase_completed_todos = list(
+        map(lambda todo: todo.description.upper(), filter(lambda todo: todo.completed, todos))
+    )
+    return jsonify(uppercase_completed_todos), 200
+
+
+@todo_blueprint.route('/todos/total_completed', methods=['GET'])
+@login_required
+def get_total_completed_todos():
+    todo_dao = get_todo_dao()
+    todos = todo_dao.get_items_by_user_id(current_user.id)
+    total_completed_todos = reduce(lambda acc, todo: acc + 1 if todo.completed else acc, todos, 0)
+    return jsonify({"total_completed_todos": total_completed_todos}), 200
